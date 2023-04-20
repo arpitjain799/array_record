@@ -24,6 +24,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 from array_record.python import array_record_data_source
+from array_record.python import array_record_module
 
 
 FLAGS = flags.FLAGS
@@ -42,6 +43,41 @@ class ArrayRecordDataSourcesTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     self.testdata_dir = pathlib.Path(FLAGS.test_srcdir)
+
+  def test_check_group_size_default(self):
+    filename = os.path.join(FLAGS.test_tmpdir, "test.array_record")
+    writer = array_record_module.ArrayRecordWriter(filename, "group_size:1")
+    writer.write(b"foobar")
+    writer.close()
+    reader = array_record_module.ArrayRecordReader(filename)
+    with self.assertNoLogs(level="ERROR"):
+      array_record_data_source._check_group_size(filename, reader)
+
+  def test_check_group_size_valid(self):
+    filename = os.path.join(FLAGS.test_tmpdir, "test.array_record")
+    writer = array_record_module.ArrayRecordWriter(filename, "group_size:1")
+    writer.write(b"foobar")
+    writer.close()
+    reader = array_record_module.ArrayRecordReader(filename)
+    with self.assertNoLogs(level="ERROR"):
+      array_record_data_source._check_group_size(filename, reader)
+
+  def test_check_group_size_invalid(self):
+    filename = os.path.join(FLAGS.test_tmpdir, "test.array_record")
+    writer = array_record_module.ArrayRecordWriter(filename, "group_size:11")
+    writer.write(b"foobar")
+    writer.close()
+    reader = array_record_module.ArrayRecordReader(filename)
+    with self.assertLogs(level="ERROR") as log_output:
+      array_record_data_source._check_group_size(filename, reader)
+    self.assertRegex(
+        log_output.output[0],
+        (
+            r"ERROR:absl:File .* was created with options .*. Grain requires"
+            r" group size 1 for good performance\. Please re-generate your"
+            r" ArrayRecord files with 'group_size:1'\."
+        ),
+    )
 
   def test_array_record_data_source_len(self):
     ar = array_record_data_source.ArrayRecordDataSource([
